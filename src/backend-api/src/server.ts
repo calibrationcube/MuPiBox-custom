@@ -1,8 +1,10 @@
-import { exec } from 'node:child_process'
+import { exec, execFile } from 'node:child_process'
+import crypto from 'node:crypto'
 import dns from 'node:dns'
 import fs from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { promisify } from 'node:util'
 import cors from 'cors'
 import express from 'express'
 import jsonfile from 'jsonfile'
@@ -18,6 +20,8 @@ import { SpotifyMediaInfo } from './services/spotify-media-info.service'
 // Force IPv4 for DNS lookups to avoid EAI_AGAIN errors on Raspberry Pi
 // This fixes issues where IPv6 is misconfigured or not supported
 dns.setDefaultResultOrder('ipv4first')
+
+const execFileAsync = promisify(execFile)
 
 const testServe = process.env.NODE_ENV === 'test'
 const devServe = process.env.NODE_ENV === 'development'
@@ -50,7 +54,9 @@ readJsonFile(`${configBasePath}/config.json`).then((configFile) => {
     console.warn('No Spotify configuration found, Spotify API service will not be available')
   }
 })
-const mupiboxConfigPath = '/etc/mupibox/mupiboxconfig.json'
+// In development the box config lives next to the other config files so the
+// backend can run on a normal dev machine without /etc/mupibox.
+const mupiboxConfigPath = productionServe ? '/etc/mupibox/mupiboxconfig.json' : `${configBasePath}/mupiboxconfig.json`
 const mupiboxConfigDir = path.dirname(mupiboxConfigPath)
 const mupiboxConfigFile = path.basename(mupiboxConfigPath)
 const dataFile = `${configBasePath}/data.json`
@@ -64,6 +70,15 @@ const albumstopFile = `${configBasePath}/albumstop.json`
 const mupihat = '/tmp/mupihat.json'
 const dataLock = '/tmp/.data.lock'
 const resumeLock = '/tmp/.resume.lock'
+
+// RSS feed cache: persisted on disk (not /tmp) so cached podcast covers and feed
+// data survive a reboot.
+const rssCacheDataDir = `${configBasePath}/rss-cache`
+// The production bundle is CommonJS (__dirname available), the dev server runs as an
+// ES module via tsx where __dirname does not exist. In dev the package dir is the cwd.
+const serverDir = productionServe ? __dirname : process.cwd()
+const rssCoverDir = path.join(serverDir, 'www', 'rss-covers')
+const rssCoverPublicBase = '/rss-covers'
 
 let mupiboxConfigCache: MupiboxConfig | undefined
 let mupiboxConfigLoadPromise: Promise<MupiboxConfig | undefined> | null = null
@@ -99,7 +114,10 @@ app.use(express.urlencoded({ extended: false }))
 // production.
 if (productionServe) {
   // Static path to compiled Angular app
-  app.use(express.static(path.join(__dirname, 'www')))
+  app.use(express.static(path.join(serverDir, 'www')))
+} else {
+  // Only the cached podcast covers are served by the backend in development.
+  app.use(rssCoverPublicBase, express.static(rssCoverDir))
 }
 
 // Routes
@@ -117,6 +135,249 @@ app.get('/api/rssfeed', async (req, res) => {
     .catch(() => {
       res.status(500).send('External url responded with error code.')
     })
+})
+
+// --------------------------------------------
+// RSS feed cache (podcast covers + feed data)
+// --------------------------------------------
+// Cached on disk (not /tmp) so covers and the feed survive a reboot. Cached data is
+// served immediately if present; a fresh copy is fetched in the background and only
+// written back to disk (and re-downloads the cover) if the newest episode changed.
+
+function rssCacheKeyFor(url: string): string {
+  return crypto.createHash('md5').update(url).digest('hex')
+}
+
+function rssCacheFilePath(cacheKey: string): string {
+  return path.join(rssCacheDataDir, `${cacheKey}.json`)
+}
+
+// A cached feed can reference a local cover file that no longer exists on disk
+// (e.g. lost during a deploy) even though the JSON cache itself survived - that
+// silently breaks the cover forever, since the cover is otherwise only
+// re-checked when a new episode appears. Detect that case so it can self-heal.
+function rssCoverFileMissing(localUrl?: string): boolean {
+  if (!localUrl || !localUrl.startsWith(`${rssCoverPublicBase}/`)) {
+    return false
+  }
+  const fileName = localUrl.slice(rssCoverPublicBase.length + 1)
+  return !fs.existsSync(path.join(rssCoverDir, fileName))
+}
+
+function extractRssText(node: unknown): string | undefined {
+  if (node === undefined || node === null) {
+    return undefined
+  }
+  if (typeof node === 'string') {
+    return node
+  }
+  if (typeof node === 'object') {
+    if ('_text' in (node as Record<string, unknown>)) {
+      return String((node as Record<string, unknown>)._text)
+    }
+    if ('_cdata' in (node as Record<string, unknown>)) {
+      return String((node as Record<string, unknown>)._cdata)
+    }
+  }
+  return undefined
+}
+
+function latestEpisodeFingerprint(feed: any): string | undefined {
+  const items = feed?.rss?.channel?.item
+  const firstItem = Array.isArray(items) ? items[0] : items
+  if (!firstItem) {
+    return undefined
+  }
+  const guid = extractRssText(firstItem.guid)
+  const pubDate = extractRssText(firstItem.pubDate)
+  const title = extractRssText(firstItem.title)
+  return guid ?? `${pubDate ?? ''}|${title ?? ''}`
+}
+
+async function downloadRssCover(coverUrl: string, cacheKey: string): Promise<string | undefined> {
+  try {
+    const extension = path.extname(new URL(coverUrl).pathname).split('?')[0] || '.jpg'
+    const coverFileName = `${cacheKey}${extension}`
+    const buffer = Buffer.from(await ky.get(coverUrl, { timeout: 15000 }).arrayBuffer())
+    await mkdir(rssCoverDir, { recursive: true })
+    await writeFile(path.join(rssCoverDir, coverFileName), buffer)
+    return `${rssCoverPublicBase}/${coverFileName}`
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Failed to cache RSS cover ${coverUrl}: ${error}`)
+    return undefined
+  }
+}
+
+// Some feeds (looking at you, Kylskåpsradion) are several MB and their server can
+// take 4-6+ seconds to respond. Cap the fetch at 5s as requested: on a slow day this
+// specific feed may occasionally miss the window and fall back to the empty feed
+// below (self-healing - nothing bad gets cached, so the next visit tries again),
+// but no single feed can ever stall a response past this.
+const rssFetchTimeoutMs = 5000
+
+/** A minimal, well-formed empty feed, used as a last-resort fallback so a single
+ * unreachable podcast never breaks the whole category listing (the frontend
+ * merges all podcasts' feeds into one Observable with no per-item error handling). */
+function emptyRssFeed(): any {
+  return { rss: { channel: { title: { _text: '' }, image: { url: { _text: '' } }, item: [] } } }
+}
+
+/**
+ * Fetches the given RSS feed and, if the newest episode differs from what's cached
+ * (or nothing is cached yet), writes the feed to disk right away (keeping whatever
+ * cover URL is already cached, if any) and kicks off the cover re-download in the
+ * background - the caller is never blocked on an image download.
+ * Returns the feed that should be served (freshly fetched one, or the untouched
+ * previous cache if nothing changed).
+ */
+async function refreshRssCache(rssUrl: string, cacheKey: string): Promise<any> {
+  const cacheFile = rssCacheFilePath(cacheKey)
+  let previousFeed: any = null
+  if (fs.existsSync(cacheFile)) {
+    try {
+      previousFeed = JSON.parse(await readFile(cacheFile, 'utf8'))
+    } catch {
+      previousFeed = null
+    }
+  }
+
+  const xml = await ky.get(rssUrl, { timeout: rssFetchTimeoutMs }).text()
+  const feed = JSON.parse(xmlparser.xml2json(xml, { compact: true, nativeType: true }))
+
+  const hasNewEpisode = latestEpisodeFingerprint(feed) !== latestEpisodeFingerprint(previousFeed)
+  const previousCoverUrl = extractRssText(previousFeed?.rss?.channel?.image?.url)
+  const coverMissing = rssCoverFileMissing(previousCoverUrl)
+
+  if (previousFeed && !hasNewEpisode && !coverMissing) {
+    // Nothing changed and the cached cover file is still there - keep serving as-is.
+    return previousFeed
+  }
+
+  // Keep showing the previously cached cover (if any, and if it still actually exists
+  // on disk) immediately; the fresh cover is downloaded below without holding up this
+  // response. If the cached cover file is missing, fall back to the live remote URL
+  // instead so the image still shows while the local copy is re-downloaded.
+  const remoteCoverUrl = extractRssText(feed?.rss?.channel?.image?.url)
+  if (feed?.rss?.channel?.image) {
+    feed.rss.channel.image.url = { _text: (coverMissing ? undefined : previousCoverUrl) ?? remoteCoverUrl }
+  }
+
+  await mkdir(rssCacheDataDir, { recursive: true })
+  await writeFile(cacheFile, JSON.stringify(feed), 'utf8')
+
+  if (remoteCoverUrl) {
+    downloadRssCover(remoteCoverUrl, cacheKey)
+      .then(async (localCoverUrl) => {
+        if (!localCoverUrl) {
+          return
+        }
+        feed.rss.channel.image.url = { _text: localCoverUrl }
+        await writeFile(cacheFile, JSON.stringify(feed), 'utf8')
+      })
+      .catch((error) => {
+        console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Failed to refresh RSS cover in background: ${error}`)
+      })
+  }
+
+  return feed
+}
+
+app.get('/api/rssfeed/cached', async (req, res) => {
+  const rssUrl = req.query.url
+  if (typeof rssUrl !== 'string') {
+    res.status(400).send('Given url is not a string.')
+    return
+  }
+
+  const cacheKey = rssCacheKeyFor(rssUrl)
+  const cacheFile = rssCacheFilePath(cacheKey)
+
+  if (fs.existsSync(cacheFile)) {
+    try {
+      const cached = JSON.parse(await readFile(cacheFile, 'utf8'))
+      res.json(cached)
+      // Refresh in the background for next time; don't make the caller wait for it.
+      refreshRssCache(rssUrl, cacheKey).catch((error) => {
+        console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Background RSS refresh failed: ${error}`)
+      })
+      return
+    } catch (error) {
+      console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Failed to read cached RSS feed: ${error}`)
+      // Fall through to a synchronous fetch below.
+    }
+  }
+
+  // No usable cache yet - fetch synchronously so there is something to show.
+  try {
+    const feed = await refreshRssCache(rssUrl, cacheKey)
+    res.json(feed)
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] RSS fetch failed: ${error}`)
+    // Respond with a valid-but-empty feed rather than an HTTP error: the frontend
+    // merges every podcast's feed into one Observable with no per-item error
+    // handling, so a single unreachable/slow feed would otherwise blank the whole
+    // category listing instead of just this one tile.
+    res.json(emptyRssFeed())
+  }
+})
+
+const imageContentTypes: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+}
+
+// On-demand image cache/proxy for per-episode podcast covers. Podcasts can have a
+// distinct cover per episode (hundreds of them for long-running shows), so we don't
+// pre-download all of them - each is fetched and cached the first time it's actually
+// requested (i.e. when the episode scrolls into view on the frontend, thanks to lazy
+// loading there), and served straight from disk on every request after that.
+// Served as a plain buffer (not res.sendFile) since sendFile's internal file
+// resolution intermittently reported a freshly-written, verified-to-exist file as
+// not found on this device.
+app.get('/api/rssfeed/image', async (req, res) => {
+  const imageUrl = req.query.url
+  if (typeof imageUrl !== 'string') {
+    res.status(400).send('Given url is not a string.')
+    return
+  }
+
+  let localFile: string
+  let extension: string
+  try {
+    const key = rssCacheKeyFor(imageUrl)
+    extension = path.extname(new URL(imageUrl).pathname).split('?')[0] || '.jpg'
+    localFile = path.join(rssCoverDir, `${key}${extension}`)
+  } catch {
+    res.status(400).send('Invalid image url.')
+    return
+  }
+
+  const contentType = imageContentTypes[extension.toLowerCase()] ?? 'image/jpeg'
+
+  if (fs.existsSync(localFile)) {
+    try {
+      const buffer = await readFile(localFile)
+      res.set('Cache-Control', 'public, max-age=604800').type(contentType).send(buffer)
+      return
+    } catch (error) {
+      console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Failed to read cached RSS image ${localFile}: ${error}`)
+      // Fall through and try fetching it fresh below.
+    }
+  }
+
+  try {
+    const buffer = Buffer.from(await ky.get(imageUrl, { timeout: 8000 }).arrayBuffer())
+    await mkdir(rssCoverDir, { recursive: true })
+    await writeFile(localFile, buffer)
+    res.set('Cache-Control', 'public, max-age=604800').type(contentType).send(buffer)
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Failed to proxy/cache RSS episode image ${imageUrl}: ${error}`)
+    res.status(502).send('Failed to fetch image.')
+  }
 })
 
 app.get('/api/data', (_req, res) => {
@@ -256,6 +517,81 @@ app.post('/api/addwlan', (req, res) => {
       res.status(200).send('ok')
     })
   })
+})
+
+// --------------------------------------------
+// WiFi: already configured networks (wpa_supplicant)
+// --------------------------------------------
+
+interface WifiConfiguredNetwork {
+  id: number
+  ssid: string
+  current: boolean
+}
+
+function parseWpaCliNetworks(stdout: string): WifiConfiguredNetwork[] {
+  return stdout
+    .split('\n')
+    .slice(1) // header line: "network id / ssid / bssid / flags"
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => {
+      const parts = line.split('\t')
+      return {
+        id: Number.parseInt(parts[0], 10),
+        ssid: parts[1] ?? '',
+        current: (parts[3] ?? '').includes('[CURRENT]'),
+      }
+    })
+    .filter((network) => !Number.isNaN(network.id))
+}
+
+app.get('/api/wifi/configured', async (_req, res) => {
+  try {
+    const { stdout } = await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'list_networks'])
+    res.json(parseWpaCliNetworks(stdout))
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error listing wifi networks: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.delete('/api/wifi/configured/:id', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10)
+  if (Number.isNaN(id)) {
+    res.status(400).send('invalid id')
+    return
+  }
+
+  try {
+    await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'remove_network', String(id)])
+    await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'save_config'])
+    console.log(`${new Date().toLocaleString()}: [MuPiBox-Server] Removed wifi network ${id}`)
+    res.status(200).send('ok')
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error removing wifi network ${id}: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.post('/api/wifi/configured/:id/password', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10)
+  const password: string = req.body?.password ?? ''
+  if (Number.isNaN(id) || password.length < 8 || password.length > 63) {
+    res.status(400).send('invalid request')
+    return
+  }
+
+  try {
+    await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'set_network', String(id), 'psk', `"${password}"`])
+    await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'enable_network', String(id)])
+    await execFileAsync('sudo', ['wpa_cli', '-i', 'wlan0', 'save_config'])
+    console.log(`${new Date().toLocaleString()}: [MuPiBox-Server] Updated password for wifi network ${id}`)
+    res.status(200).send('ok')
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error updating wifi network ${id}: ${error}`)
+    res.status(500).send('error')
+  }
 })
 
 app.post('/api/add', (req, res) => {
@@ -998,6 +1334,125 @@ app.post('/api/reboot', (_req, res) => {
   })
 })
 
+// --------------------------------------------
+// Bluetooth
+// --------------------------------------------
+
+const macAddressPattern = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/
+
+function isValidMac(mac: unknown): mac is string {
+  return typeof mac === 'string' && macAddressPattern.test(mac)
+}
+
+interface BluetoothDevice {
+  mac: string
+  name: string
+}
+
+app.get('/api/bluetooth/status', async (_req, res) => {
+  try {
+    const { stdout: showOutput } = await execFileAsync('bluetoothctl', ['show'])
+    const powered = /Powered:\s*yes/.test(showOutput)
+
+    if (!powered) {
+      res.json({ powered: false, paired: [] })
+      return
+    }
+
+    // Note: "paired-devices" is only available in newer bluez releases; "devices Paired" works from bluez 5.65+.
+    const { stdout: pairedOutput } = await execFileAsync('bluetoothctl', ['devices', 'Paired'])
+    const devices: BluetoothDevice[] = pairedOutput
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('Device '))
+      .map((line) => {
+        const [, mac, ...nameParts] = line.split(' ')
+        return { mac, name: nameParts.join(' ') || mac }
+      })
+
+    const paired = await Promise.all(
+      devices.map(async (device) => {
+        try {
+          const { stdout: infoOutput } = await execFileAsync('bluetoothctl', ['info', device.mac])
+          return { ...device, connected: /Connected:\s*yes/.test(infoOutput) }
+        } catch {
+          return { ...device, connected: false }
+        }
+      }),
+    )
+
+    res.json({ powered: true, paired })
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error reading bluetooth status: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.post('/api/bluetooth/power', async (req, res) => {
+  const script = req.body?.on === true ? 'start_bt.sh' : 'stop_bt.sh'
+
+  try {
+    await execFileAsync(`/usr/local/bin/mupibox/${script}`, [])
+    console.log(`${new Date().toLocaleString()}: [MuPiBox-Server] Bluetooth power: ran ${script}`)
+    res.status(200).send('ok')
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error running ${script}: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.post('/api/bluetooth/scan', async (_req, res) => {
+  try {
+    const { stdout } = await execFileAsync('/usr/local/bin/mupibox/scan_bt.sh', [], { timeout: 20000 })
+
+    const devices: BluetoothDevice[] = stdout
+      .split('\n')
+      .slice(1) // first line is "Scanning ..."
+      .map((line) => line.split('\t'))
+      .filter((parts) => isValidMac(parts[1]))
+      .map((parts) => ({ mac: parts[1], name: parts[2]?.trim() || parts[1] }))
+
+    res.json(devices)
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error scanning for bluetooth devices: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.post('/api/bluetooth/pair', async (req, res) => {
+  const mac = req.body?.mac
+  if (!isValidMac(mac)) {
+    res.status(400).send('invalid mac address')
+    return
+  }
+
+  try {
+    await execFileAsync('/usr/local/bin/mupibox/pair_bt.sh', [mac], { timeout: 25000 })
+    console.log(`${new Date().toLocaleString()}: [MuPiBox-Server] Paired bluetooth device ${mac}`)
+    res.status(200).send('ok')
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error pairing bluetooth device ${mac}: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
+app.post('/api/bluetooth/remove', async (req, res) => {
+  const mac = req.body?.mac
+  if (!isValidMac(mac)) {
+    res.status(400).send('invalid mac address')
+    return
+  }
+
+  try {
+    await execFileAsync('/usr/local/bin/mupibox/remove_bt.sh', [mac], { timeout: 15000 })
+    console.log(`${new Date().toLocaleString()}: [MuPiBox-Server] Removed bluetooth device ${mac}`)
+    res.status(200).send('ok')
+  } catch (error) {
+    console.error(`${new Date().toLocaleString()}: [MuPiBox-Server] Error removing bluetooth device ${mac}: ${error}`)
+    res.status(500).send('error')
+  }
+})
+
 app.post('/api/telegram/screen', (req, res) => {
   fs.readFile(mupiboxConfigPath, 'utf8', (err, data) => {
     if (err) {
@@ -1097,7 +1552,7 @@ const getMupiboxConfig = async (): Promise<MupiboxConfig | undefined> => {
 // This must be placed after all API routes but before starting the server
 if (productionServe) {
   app.get(/.*/, (_req, res) => {
-    res.sendFile('index.html', { root: path.join(__dirname, 'www') })
+    res.sendFile('index.html', { root: path.join(serverDir, 'www') })
   })
 }
 

@@ -1,62 +1,46 @@
 import { ChangeDetectionStrategy, Component, computed, Signal, signal, WritableSignal } from '@angular/core'
 import { toObservable, toSignal } from '@angular/core/rxjs-interop'
 import { NavigationExtras, Router } from '@angular/router'
-import { IonBackButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar } from '@ionic/angular/standalone'
-import { addIcons } from 'ionicons'
-import { arrowBackOutline } from 'ionicons/icons'
+import { IonContent } from '@ionic/angular/standalone'
 import { catchError, combineLatest, map, of, switchMap, tap } from 'rxjs'
 
 import type { Artist } from '../artist'
-import { ArtworkService } from '../artwork.service'
 import { LoadingComponent } from '../loading/loading.component'
 import { CategoryType, Media, MediaSorting } from '../media'
 import { MediaService } from '../media.service'
-import { MupiHatIconComponent } from '../mupihat-icon/mupihat-icon.component'
-import { SwiperComponent, SwiperData } from '../swiper/swiper.component'
-import { SwiperIonicEventsHelper } from '../swiper/swiper-ionic-events-helper'
+import { PlayerService } from '../player.service'
+import { StatusBarComponent } from '../status-bar/status-bar.component'
+import { TilePageItem, TilePagesComponent } from '../tile-pages/tile-pages.component'
+
+const NO_COVER = '../assets/images/nocover_mupi.png'
 
 @Component({
   selector: 'app-medialist',
   templateUrl: './medialist.page.html',
   styleUrls: ['./medialist.page.scss'],
-  imports: [
-    MupiHatIconComponent,
-    IonHeader,
-    IonToolbar,
-    IonButtons,
-    IonBackButton,
-    IonTitle,
-    IonContent,
-    SwiperComponent,
-    LoadingComponent,
-  ],
+  imports: [IonContent, LoadingComponent, StatusBarComponent, TilePagesComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class MedialistPage extends SwiperIonicEventsHelper {
+export class MedialistPage {
   protected isLoading: WritableSignal<boolean> = signal(false)
   protected category: WritableSignal<CategoryType> = signal('audiobook')
   protected artist: WritableSignal<Artist | undefined> = signal(undefined)
   protected media: Signal<Media[]>
-  protected swiperData: Signal<SwiperData<Media>[]> = computed(() => {
-    return this.media()?.map((media) => {
-      return {
-        name: media.title,
-        imgSrc: this.artworkService.getArtwork(media),
-        data: media,
-      }
-    })
-  })
+  protected items: Signal<TilePageItem<Media>[]>
+  protected artistCover: Signal<string>
 
   constructor(
     private router: Router,
     private mediaService: MediaService,
-    private artworkService: ArtworkService,
+    private playerService: PlayerService,
   ) {
-    super()
-    addIcons({ arrowBackOutline })
-
     this.artist.set(this.router.currentNavigation()?.extras.state?.artist)
     this.category.set(this.router.currentNavigation()?.extras.state?.category ?? 'audiobook')
+
+    this.artistCover = computed(() => {
+      const artist = this.artist()
+      return artist?.coverMedia?.artistcover || artist?.coverMedia?.cover || artist?.cover || NO_COVER
+    })
 
     this.media = toSignal(
       combineLatest([toObservable(this.category), toObservable(this.artist)]).pipe(
@@ -99,7 +83,24 @@ export class MedialistPage extends SwiperIonicEventsHelper {
         }),
         tap(() => this.isLoading.set(false)),
       ),
+      { initialValue: [] as Media[] },
     )
+
+    this.items = computed(() =>
+      this.media().map((media) => ({
+        imgSrc: media.cover || NO_COVER,
+        title: media.title,
+        data: media,
+      })),
+    )
+  }
+
+  protected readText(text: string): void {
+    this.playerService.sayText(text)
+  }
+
+  protected goBack(): void {
+    this.router.navigate(['/home'])
   }
 
   protected coverClicked(clickedMedia: Media): void {
