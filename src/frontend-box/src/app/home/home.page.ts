@@ -1,13 +1,17 @@
+import { HttpClient } from '@angular/common/http'
 import { ChangeDetectionStrategy, Component, computed, Signal, signal, WritableSignal } from '@angular/core'
-import { toObservable, toSignal } from '@angular/core/rxjs-interop'
+import { toSignal } from '@angular/core/rxjs-interop'
 import { NavigationExtras, Router } from '@angular/router'
 import { IonContent, IonIcon, IonSpinner } from '@ionic/angular/standalone'
-import { catchError, of, switchMap, tap } from 'rxjs'
+import { catchError, map, of, scan, switchMap, tap } from 'rxjs'
+import { environment } from '../../environments/environment'
 
 import type { Artist } from '../artist'
 import { registerLucideIcons } from '../icons/lucide-icons'
 import type { CategoryType } from '../media'
 import { MediaService } from '../media.service'
+import { MediaRefreshReason, MediaRefreshService } from '../media-refresh.service'
+import type { MupiboxConfig } from '../mupibox-config.model'
 import { PlayerService } from '../player.service'
 import { StatusBarComponent } from '../status-bar/status-bar.component'
 import { TileComponent } from '../tile/tile.component'
@@ -37,19 +41,36 @@ interface HomeSection {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class HomePage {
-  protected isOnline: Signal<boolean>
-  protected sections: HomeSection[]
+  /** Shown when entries are still missing after the box retried on its own. */
+  protected readonly mediaIncomplete: Signal<boolean>
+  /** Categories the admin has hidden (Admin > Control system > Hide display categorys). */
+  private hiddenCategories: WritableSignal<string[]> = signal([])
+  private allSections: HomeSection[]
+  protected sections = computed(() => this.allSections.filter((s) => !this.hiddenCategories().includes(s.category)))
 
   constructor(
     private mediaService: MediaService,
+    private mediaRefresh: MediaRefreshService,
     private playerService: PlayerService,
     private router: Router,
+    private http: HttpClient,
   ) {
     registerLucideIcons()
 
-    this.isOnline = toSignal(this.mediaService.isOnline())
+    this.http.get<MupiboxConfig>(`${environment.backend.apiUrl}/config`).subscribe({
+      next: (config) => {
+        const hidden = config?.mupibox?.hiddenCategories
+        if (Array.isArray(hidden)) {
+          this.hiddenCategories.set(hidden)
+        }
+      },
+      // Show all sections when the config could not be loaded.
+      error: () => {},
+    })
 
-    this.sections = [
+    this.mediaIncomplete = this.mediaRefresh.incomplete
+
+    this.allSections = [
       this.createSection('audiobook', 'Hörspiele', 'lucide-headphones'),
       this.createSection('music', 'Musik', 'lucide-music'),
       this.createSection('other', 'Podcasts & Radio', 'lucide-podcast'),
@@ -57,24 +78,35 @@ export class HomePage {
   }
 
   /**
-   * Builds the data pipeline for one category. Artists are (re)loaded whenever the
-   * online state changes, the same trigger the previous tab based home page used.
+   * Builds the data pipeline for one category. Artists are (re)loaded on every
+   * refresh: when the online state changes, when the box retries an incomplete load
+   * and when someone presses the reload button.
    */
   private createSection(category: CategoryType, label: string, icon: string): HomeSection {
     const isLoading = signal(true)
 
     const artists = toSignal(
-      toObservable(this.isOnline).pipe(
+      this.mediaRefresh.refresh$.pipe(
         tap(() => isLoading.set(true)),
-        switchMap(() =>
+        switchMap((reason) =>
           this.mediaService.fetchArtistData(category).pipe(
             catchError((error) => {
               console.error(error)
               return of([] as Artist[])
             }),
+            map((loaded) => ({ reason, loaded })),
           ),
         ),
         tap(() => isLoading.set(false)),
+        // An automatic retry runs while a child may be looking at the page. If it
+        // comes back empty (Spotify still unreachable) the tiles that are already
+        // there stay - only a deliberate reload may empty a filled row.
+        scan((previous: Artist[], { reason, loaded }: { reason: MediaRefreshReason; loaded: Artist[] }) => {
+          if (reason === 'retry' && loaded.length === 0 && previous.length > 0) {
+            return previous
+          }
+          return loaded
+        }, [] as Artist[]),
       ),
       { initialValue: [] as Artist[] },
     )
@@ -89,14 +121,26 @@ export class HomePage {
     return { category, label, icon, isLoading, tiles }
   }
 
+  /** Reload button in the hint banner: fetch everything again right now. */
+  protected reloadMedia(): void {
+    this.mediaRefresh.reload()
+  }
+
   protected readText(text: string): void {
     this.playerService.sayText(text)
   }
 
   protected async artistCoverClicked(artist: Artist, category: CategoryType): Promise<void> {
-    // Check if this is a standalone playlist (playlist without artist)
-    if (artist.coverMedia?.playlistid && !artist.coverMedia?.artist) {
-      // This is a standalone playlist - start playback directly
+    // NAS and local folders that hold tracks (not further folders) play right away, as do
+    // standalone playlists that carry no artist.
+    const isPlayableNasFolder = artist.coverMedia?.type === 'nas' && !artist.coverMedia.nasIsContainer
+    const isPlayableLibraryFolder =
+      artist.coverMedia?.type === 'library' && !!artist.coverMedia.libraryPath && !artist.coverMedia.libraryIsContainer
+    if (
+      isPlayableNasFolder ||
+      isPlayableLibraryFolder ||
+      (artist.coverMedia?.playlistid && !artist.coverMedia?.artist)
+    ) {
       const navigationExtras: NavigationExtras = {
         state: {
           media: artist.coverMedia,
@@ -110,6 +154,13 @@ export class HomePage {
           artist: artist,
           category: category,
         },
+        // NAS / local folder levels are identified by their folder path (see MedialistPage).
+        queryParams:
+          artist.coverMedia?.type === 'nas'
+            ? { nas: artist.coverMedia.nasPath }
+            : artist.coverMedia?.libraryPath
+              ? { lib: artist.coverMedia.libraryPath }
+              : undefined,
       }
       this.router.navigate(['/medialist'], navigationExtras)
     }

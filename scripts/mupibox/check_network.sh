@@ -39,38 +39,42 @@ if [ ! -f ${RESUME_FILE} ]; then
 	fi
 fi
 
+# Writes the online state without disturbing the fields get_network.sh fills in.
+# The update goes through a temporary file, so a reader never catches the file half
+# written, and a file that is no longer valid JSON is rebuilt instead of staying
+# broken for the rest of the uptime - that used to leave the box showing
+# "no connection" until it was rebooted.
+write_onlinestate() {
+	local tmp
+	tmp=$(/usr/bin/mktemp "${NETWORKCONFIG}.XXXXXX")
+	if /usr/bin/jq --arg v "$1" '.onlinestate = $v' "${NETWORKCONFIG}" > "${tmp}" 2>/dev/null; then
+		chmod 666 "${tmp}" 2>/dev/null
+		mv -f "${tmp}" "${NETWORKCONFIG}"
+	elif /usr/bin/jq -n --arg v "$1" '{onlinestate: $v}' > "${tmp}" 2>/dev/null; then
+		chmod 666 "${tmp}" 2>/dev/null
+		mv -f "${tmp}" "${NETWORKCONFIG}"
+	else
+		rm -f "${tmp}"
+	fi
+}
+
 if [ ! -f ${NETWORKCONFIG} ]; then
-        sudo echo -n "[]" ${NETWORKCONFIG}
-        chown dietpi:dietpi ${NETWORKCONFIG}
-        chmod 777 ${NETWORKCONFIG}
-        /usr/bin/cat <<< $(/usr/bin/jq -n --arg v "starting" '.onlinestate = $v' ${NETWORKCONFIG}) >  ${NETWORKCONFIG}
-else
-        OLD_ONLINESTATE=$(/usr/bin/jq -r .onlinestate ${NETWORKCONFIG})
+        write_onlinestate "starting"
 fi
 
 #wget -q --spider http://google.com
 
 while true
 do
-	if ( $(/usr/bin/python3 /usr/local/bin/mupibox/check_network.py) == ${TRUESTATE} ); then
+	if /usr/bin/python3 /usr/local/bin/mupibox/check_network.py; then
 		ONLINESTATE=${TRUESTATE}
 		if [ "${ONLINESTATE}" != "${OLDSTATE}" ]; then
-			if [ ! -f ${ACTIVE_FILE} ]; then
-				ln -s ${DATA_FILE} ${ACTIVE_FILE}
-				chown dietpi:dietpi ${ACTIVE_FILE}
-			elif [[ ${OLD_ONLINESTATE} != "online" ]]; then
-				rm ${ACTIVE_FILE}
-				ln -s ${DATA_FILE} ${ACTIVE_FILE}
-				chown dietpi:dietpi ${ACTIVE_FILE}
-			fi
-			if [ ! -f ${ACTIVERESUME_FILE} ]; then
-				ln -s ${RESUME_FILE} ${ACTIVERESUME_FILE}
-				chown dietpi:dietpi ${ACTIVERESUME_FILE}
-			elif [[ ${OLD_ONLINESTATE} != "online" ]]; then
-				rm ${ACTIVERESUME_FILE}
-				ln -s ${RESUME_FILE} ${ACTIVERESUME_FILE}
-				chown dietpi:dietpi ${ACTIVERESUME_FILE}
-			fi
+			rm -f "${ACTIVE_FILE}"
+			ln -s "${DATA_FILE}" "${ACTIVE_FILE}"
+			chown dietpi:dietpi "${ACTIVE_FILE}"
+			rm -f "${ACTIVERESUME_FILE}"
+			ln -s "${RESUME_FILE}" "${ACTIVERESUME_FILE}"
+			chown dietpi:dietpi "${ACTIVERESUME_FILE}"
 		fi
 	else
 		ONLINESTATE=${FALSESTATE}
@@ -113,27 +117,22 @@ do
 			sed -i 's/} {/}, {/g' ${OFFLINERESUME_FILE}
 		fi
 		if [ "${ONLINESTATE}" != "${OLDSTATE}" ]; then
-			if [ ! -f ${ACTIVE_FILE} ]; then
-				ln -s ${OFFLINE_FILE} ${ACTIVE_FILE}
-				chown dietpi:dietpi ${ACTIVE_FILE}
-			elif [[ ${OLD_ONLINESTATE} != "offline" ]]; then
-				rm ${ACTIVE_FILE}
-				ln -s ${OFFLINE_FILE} ${ACTIVE_FILE}
-				chown dietpi:dietpi ${ACTIVE_FILE}
-			fi
-			if [ ! -f ${ACTIVERESUME_FILE} ]; then
-				ln -s ${OFFLINERESUME_FILE} ${ACTIVERESUME_FILE}
-				chown dietpi:dietpi ${ACTIVERESUME_FILE}
-			elif [[ ${OLD_ONLINESTATE} != "offline" ]]; then
-				rm ${ACTIVERESUME_FILE}
-				ln -s ${OFFLINERESUME_FILE} ${ACTIVERESUME_FILE}
-				chown dietpi:dietpi ${ACTIVERESUME_FILE}
-			fi
+			rm -f "${ACTIVE_FILE}"
+			ln -s "${OFFLINE_FILE}" "${ACTIVE_FILE}"
+			chown dietpi:dietpi "${ACTIVE_FILE}"
+			rm -f "${ACTIVERESUME_FILE}"
+			ln -s "${OFFLINERESUME_FILE}" "${ACTIVERESUME_FILE}"
+			chown dietpi:dietpi "${ACTIVERESUME_FILE}"
 		fi
 	fi
 
+	# Written on every pass, not only when the state changes: should a parallel
+	# get_network.sh run have overwritten it, this puts it back within ten seconds
+	# instead of leaving a wrong state behind until the next real change.
+	write_onlinestate "${ONLINESTATE}"
+
 	if [ "${ONLINESTATE}" != "${OLDSTATE}" ]; then
-		/usr/bin/cat <<< $(/usr/bin/jq --arg v "${ONLINESTATE}" '.onlinestate = $v' ${NETWORKCONFIG}) >  ${NETWORKCONFIG}
+		echo "Online state changed to ${ONLINESTATE}."
 	#	if [ "${ONLINESTATE}" == "${FALSESTATE}" ] && [ "${OLDSTATE}" != "starting" ]; then
 	#		#sudo dhclient -r
 	#		sudo service ifup@wlan0 stop
