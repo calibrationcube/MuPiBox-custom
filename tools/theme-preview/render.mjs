@@ -218,10 +218,10 @@ const evaluate = async (expression) =>
 
 // everything drawn: fonts, pictures, then a moment for the theme's own fade-ins
 const settled = `(async () => {
-  for (let i = 0; i < 100 && document.querySelectorAll('ion-content.home-content swiper-slide').length < 3; i++) await new Promise((r) => setTimeout(r, 100))
+  for (let i = 0; i < 100 && document.querySelectorAll('ion-content.home-content swiper-slide, ion-content.home-content mupi-lg-tile').length < 3; i++) await new Promise((r) => setTimeout(r, 100))
   await document.fonts.ready
   await Promise.all([...document.images].filter((img) => !img.complete).map((img) => new Promise((r) => { img.onload = img.onerror = r })))
-  return document.querySelectorAll('ion-content.home-content swiper-slide').length
+  return document.querySelectorAll('ion-content.home-content swiper-slide, ion-content.home-content mupi-lg-tile').length
 })()`
 
 // "custom": the hint that the picture is only an example (a dark pill, 40 high, bottom right)

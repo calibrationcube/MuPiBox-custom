@@ -1,0 +1,138 @@
+/* lagune – das Design von MuPiBox-custom (Figma „Mupibox_Gui“) als eigenes Theme.
+   Heller Türkis-Grund mit dunkleren Bögen, alle Kategorien auf einer Startseite, eckige Kacheln mit
+   Milchglas-Namensband, runde weiße Player-Knöpfe.
+
+   Diese Datei trägt nur Farben, Hintergrund und Schrift. Den Aufbau von Startseite, Albenliste,
+   „Weiterhören“ und Player bringt die App selbst mit (src/frontend-box/src/app/lagune), sobald dieses
+   Theme gewählt ist. Alle anderen Seiten (Einstellungen usw.) bleiben, wie sie sind.
+
+   Eigene Farbvariante: diese Datei als themes/lagune-<name>.css kopieren, die Werte unter :root
+   ändern und den Namen in mupibox.installedThemes eintragen - der Aufbau kommt automatisch mit. */
+
+@font-face {
+  font-family: "Nunito";
+  src: url("/theme-data/_fonts/nunito-latin-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("/theme-data/_fonts/nunito-latin-800-normal.woff2") format("woff2");
+  font-weight: 800;
+  font-display: block;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("/theme-data/_fonts/nunito-latin-ext-700-normal.woff2") format("woff2");
+  font-weight: 700;
+  font-display: block;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Nunito";
+  src: url("/theme-data/_fonts/nunito-latin-ext-800-normal.woff2") format("woff2");
+  font-weight: 800;
+  font-display: block;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+:root {
+  /* Hintergrund (Figma-Board): Grundfarbe, die Bögen, das dunklere Band unten */
+  --lg-bg-base: #82d3d3;
+  --lg-bg-arc: #4aa9ad;
+  --lg-bg-bottom: #2f8a90;
+
+  /* Akzente: Balken an den Kacheln, Fortschritt, aktueller Titel / Symbole der Kategorien, Play-Knopf */
+  --lg-accent: #01aadf;
+  --lg-icon-accent: #e8593f;
+
+  /* Schrift und Text auf dem Hintergrund */
+  --lg-font: "Nunito", sans-serif;
+  --lg-text: #f5f5f5;
+  --lg-text-soft: rgba(245, 245, 245, 0.85);
+
+  /* Kacheln */
+  --lg-tile-empty: #d9d9d9;
+  --lg-tile-band: rgba(255, 255, 255, 0.5);
+  --lg-tile-text: #1c1c1c;
+  --lg-badge: #ffffff;
+
+  /* dunkle Pillen (Status, „Weiterhören“, „Läuft gerade“) und das Feld der Titelliste */
+  --lg-pill: rgba(0, 0, 0, 0.6);
+  --lg-on-pill: #ffffff;
+  --lg-panel: rgba(0, 0, 0, 0.6);
+
+  /* Player: runde Knöpfe, Leisten, Seitenpunkte */
+  --lg-button: #ffffff;
+  --lg-on-button: #1c1c1c;
+  --lg-track: rgba(0, 0, 0, 0.35);
+  --lg-volume: rgba(245, 245, 245, 0.9);
+  --lg-dot: #d9d9d9;
+  --lg-dot-idle: rgba(217, 217, 217, 0.55);
+
+  /* Statusanzeige (WLAN + Akku, src/frontend-box/src/app/status) auf der dunklen Pille */
+  --st-on: #ffffff;
+  --st-track: rgba(255, 255, 255, 0.42);
+  --st-full: #ffffff;
+  --st-num: #1c1c1c;
+  --st-low: #ff314c;
+  --st-charge: #428cff;
+  --st-bolt-edge: #2f2f2f;
+
+  /* die übrigen Seiten (Einstellungen usw.) in den Farben des Themes */
+  --ion-font-family: var(--lg-font);
+  --ion-background-color: #e9f6f6;
+  --ion-text-color: #143c41;
+}
+
+body {
+  --ion-color-light: #2f8a90 !important;
+  --ion-color-light-rgb: 47, 138, 144 !important;
+  --ion-color-light-contrast: #ffffff !important;
+  --ion-color-light-contrast-rgb: 255, 255, 255 !important;
+  --ion-color-light-shade: #297a7f !important;
+  --ion-color-light-tint: #44969b !important;
+}
+
+/* Hintergrund der Theme-Seiten: Türkis mit großen dunkleren Bögen und einem weich dunkleren Band unten */
+ion-content.lg-page {
+  --background: transparent;
+  background:
+    linear-gradient(to bottom, rgba(47, 138, 144, 0) 62%, var(--lg-bg-bottom) 100%),
+    radial-gradient(circle at -6% 58%, transparent 0 34%, var(--lg-bg-arc) 34.5% 46%, transparent 46.5%),
+    radial-gradient(circle at 34% 108%, transparent 0 40%, var(--lg-bg-arc) 40.5% 56%, transparent 56.5%),
+    var(--lg-bg-base);
+}
+
+ion-content.lg-page::part(scroll) {
+  scrollbar-width: none;
+}
+
+/* Hörzeit-Chip: unter der Status-Pille, im Look der Pillen */
+body.lg .playtime-chip {
+  top: 62px;
+  right: 10px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  font-family: var(--lg-font);
+  font-weight: 700;
+  font-size: 15px;
+  background: var(--lg-pill);
+  color: var(--lg-on-pill);
+}
+body.lg .playtime-chip[data-level="warning"] {
+  background: rgba(255, 193, 7, 0.95);
+  color: #1a1a1a;
+}
+body.lg .playtime-chip[data-level="critical"] {
+  background: rgba(244, 67, 54, 0.95);
+  color: #ffffff;
+}
+
+/* Ladekreis und „nicht erreichbar“ auf dem Türkis */
+body.lg ion-spinner {
+  color: #ffffff;
+}

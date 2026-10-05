@@ -163,6 +163,8 @@ the packages in the bundles.
 | Fredoka font | web app and kids' themes (`mupi-app/fonts`, `themes/_fonts`) | SIL Open Font License 1.1 | `OFL-Fredoka.txt` next to the font |
 | Nunito Sans font | web app (`mupi-app/fonts`) | SIL Open Font License 1.1 | `OFL-NunitoSans.txt` next to the font |
 | Baloo 2 font | kids' themes (`themes/_fonts`) | SIL Open Font License 1.1 | `OFL-Baloo2.txt` next to the font |
+| Nunito font | theme `lagune` (`themes/_fonts`) | SIL Open Font License 1.1 | `OFL-Nunito.txt` next to the font |
+| Lucide icons (outlines in `src/frontend-box/src/app/lagune/lagune-theme.ts`) | theme `lagune` | ISC | https://lucide.dev |
 | fbv (framebuffer image viewer) | boot and shutdown pictures, prebuilt in `bin/fbv` | GPL-2.0 | TODO: add the source offer / link to the source of the exact version |
 | led_control | power LED, compiled on the box from `scripts/led/led_control.c` | MuPiBox project code |  |
 | Berlin Small Caps by Manfred Klein (`BerlinSmallCaps.ttf`) | theme `dinosaur` | dafont "100% Free"; the file names only the copyright | https://www.dafont.com/berlin-small-caps.font |

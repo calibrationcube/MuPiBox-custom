@@ -24,6 +24,9 @@ Please visit official website  https://mupibox.de/anleitungen/installationsanlei
 ## Dependencies
 See [DEPENDENCIES.md](DEPENDENCIES.md) for what MuPiBox needs (npm packages, system packages, binaries such as librespot, services) and what is no longer used.
 
+## Theme "Lagune"
+[docs/LAGUNE_THEME.md](docs/LAGUNE_THEME.md): the design of MuPiBox-custom as a theme of its own (start page, album list, resume, player and track list), how to install it and how to keep it in step with the upstream DEV version.
+
 ## Cover Flow prompt
 [docs/COVERFLOW_PROMPT.md](docs/COVERFLOW_PROMPT.md) is a prompt for an AI coding assistant that rebuilds the Cover Flow theme of this fork in your own MuPiBox project.
 
