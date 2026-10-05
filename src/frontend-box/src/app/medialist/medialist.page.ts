@@ -26,6 +26,8 @@ import { MediaService } from '../media.service'
 import { MediaUnavailableComponent } from '../media-unavailable/media-unavailable.component'
 import { StatusComponent } from '../status/status.component'
 import { KmStatusGroupComponent } from '../km-header/km-status-group.component'
+import { LgHeaderComponent } from '../lagune/lg-header.component'
+import { LgTilePagesComponent } from '../lagune/lg-tile-pages.component'
 import { NowPlayingPillComponent } from '../now-playing-pill/now-playing-pill.component'
 import { KmThemeService } from '../theme/km-theme.service'
 import { SwiperComponent, SwiperData } from '../swiper/swiper.component'
@@ -49,6 +51,8 @@ import { SwiperIonicEventsHelper } from '../swiper/swiper-ionic-events-helper'
     SwiperComponent,
     LoadingComponent,
     MediaUnavailableComponent,
+    LgHeaderComponent,
+    LgTilePagesComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -57,6 +61,8 @@ export class MedialistPage extends SwiperIonicEventsHelper {
   // km themes, design round 2: header with the back button, the title, "Läuft gerade" and the status group
   protected readonly km = inject(KmThemeService).isKm
   protected readonly r2 = inject(KmThemeService).roundTwo
+  /** Lagune: its header and the paged tile grid instead of the swiper (app/lagune) */
+  protected readonly lg = inject(KmThemeService).isLagune
   protected category: WritableSignal<CategoryType> = signal('audiobook')
   protected artist: WritableSignal<Artist | undefined> = signal(undefined)
 

@@ -1,0 +1,52 @@
+// Figma "Album" frame: 170 px tiles in three columns (23 px gap, 38 px row gap) starting at x=122, and a column of
+// 15 px page dots at the right edge.
+$tile: 170px;
+$gap-x: 23px;
+$gap-y: 38px;
+
+// Fills the page below the header (the page can move its top with --lg-tile-pages-top).
+:host {
+    position: absolute;
+    top: var(--lg-tile-pages-top, 54px);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+}
+
+// Vertical scroller: every "page" is one screen high and snaps into place, so the dots can show the current page.
+.pages-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.page {
+    box-sizing: border-box;
+    height: 100%;
+    // 24 + 170 + 38 + 170 + 24 px shadow fill the 426 px below the header exactly
+    padding: 24px 0 0 122px;
+    display: grid;
+    grid-template-columns: repeat(3, $tile);
+    grid-auto-rows: $tile;
+    column-gap: $gap-x;
+    row-gap: $gap-y;
+    align-content: start;
+    scroll-snap-align: start;
+}
+
+mupi-lg-page-dots {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 72px;
+    z-index: 10;
+}

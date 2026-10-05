@@ -81,6 +81,43 @@
       }
 </ng-template>
 
+@if (lg()) {
+<!-- Lagune: its own player and track list (app/lagune/lg-player); this page keeps doing the playback -->
+<ion-content class="player-content lg-page" [scrollY]="false">
+  <mupi-lg-player
+    [media]="media"
+    [spotify]="spotify"
+    [local]="local"
+    [cover]="shownCover()"
+    [playing]="playing"
+    [progress]="progress"
+    [pressingCover]="pressingCover"
+    [listViewTimerMs]="listViewTimerMs"
+    [backAction]="backAction()"
+    [outputChoosable]="outputChoosable()"
+    [outputOnBluetooth]="outputOnBluetooth()"
+    [showTrackList]="showTrackList"
+    [loadingTrackList]="loadingTrackList"
+    [trackListFailed]="trackListFailed"
+    [trackList]="trackList"
+    [isCurrentTrack]="isCurrentFn"
+    (back)="backFromPlayer()"
+    (playPause)="playPause()"
+    (skipPrev)="skipPrev()"
+    (skipNext)="skipNext()"
+    (volDown)="volDown()"
+    (volUp)="volUp()"
+    (toggleShuffle)="toggleshuffle()"
+    (seekTo)="seek($event)"
+    (coverDown)="coverPointerDown()"
+    (coverUp)="coverPointerUp()"
+    (openTrackList)="openTrackList()"
+    (closeTrackList)="closeTrackList()"
+    (playTrack)="playTrackFromList($event)"
+    (openOutput)="openOutput()">
+  </mupi-lg-player>
+</ion-content>
+} @else {
 <ion-header class="player-header" [class.km-r2]="r2()">
   @if (r2()) {
     <!-- km themes, design round 2 (§3): minimise/back, album and track, "Hören mit" (only with a paired headset),
@@ -405,6 +442,8 @@
   </ion-grid>
   }
 </ion-content>
+
+}
 
 <!-- "Hören mit": the box or a paired Bluetooth device, one tile each (see chooseOutput) -->
 @if (outputOpen()) {

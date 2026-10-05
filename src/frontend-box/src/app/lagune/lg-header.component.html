@@ -1,0 +1,21 @@
+<header class="lg-header">
+  <button type="button" class="corner" [class.corner-icon]="!picture()" (click)="cornerClicked.emit()" [attr.aria-label]="cornerLabel()">
+    @if (picture(); as src) {
+      <img draggable="false" ondragstart="return false;" [src]="src" alt="">
+    } @else {
+      <ion-icon [name]="icon()"></ion-icon>
+    }
+  </button>
+  <div class="titles">
+    @if (title()) {
+      <h1 class="title">{{ title() }}</h1>
+    }
+    @if (subtitle()) {
+      <div class="subtitle">{{ subtitle() }}</div>
+    }
+  </div>
+  @if (nowPlaying()) {
+    <div class="np-slot"><mupi-now-playing-pill></mupi-now-playing-pill></div>
+  }
+  <mupi-lg-status-pill [settingsHoldMs]="settingsHoldMs()"></mupi-lg-status-pill>
+</header>

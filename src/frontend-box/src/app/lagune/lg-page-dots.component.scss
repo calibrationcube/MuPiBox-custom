@@ -1,0 +1,28 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--lg-dot-gap, 33px);
+    pointer-events: none;
+}
+
+.page-dot {
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--lg-dot-idle, rgba(217, 217, 217, 0.55));
+    pointer-events: auto;
+    transition: background 150ms ease, transform 150ms ease;
+
+    &.small {
+        transform: scale(0.6);
+    }
+
+    &.active {
+        background: var(--lg-dot, #d9d9d9);
+        transform: scale(1.25);
+    }
+}

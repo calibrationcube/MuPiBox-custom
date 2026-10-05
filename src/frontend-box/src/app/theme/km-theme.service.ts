@@ -1,6 +1,7 @@
 import { HttpClient } from '@angular/common/http'
 import { computed, effect, Injectable, signal } from '@angular/core'
 import { environment } from '../../environments/environment'
+import { isLaguneTheme } from '../lagune/lagune-theme'
 import type { MupiboxConfig } from '../mupibox-config.model'
 import { PlaytimeService } from '../playtime.service'
 import { type KmTheme, kmTheme } from './km-themes'
@@ -11,7 +12,7 @@ import { type KmTheme, kmTheme } from './km-themes'
  * The theme's stylesheet itself comes as before (active_theme.css); the parts of the km look that need their own
  * markup are switched on here by classes on <body>: km, km-theme-<id>, km-light (light background), km-stage
  * (stage view switched on in MuPi-Conf) and km-night (Tag & Nacht at night). coverflow: only cf (the round-2 parts in
- * its colours). Any other theme: no km class at all.
+ * its colours). Lagune (and its copies "lagune-…"): lg, its own markup from app/lagune. Any other theme: no km class.
  */
 @Injectable({ providedIn: 'root' })
 export class KmThemeService {
@@ -29,6 +30,10 @@ export class KmThemeService {
   readonly isCoverflow = computed(() => this.themeId() === 'coverflow')
   /** the round-2 layout of header, player and track list: every km theme and coverflow */
   readonly roundTwo = computed(() => this.isKm() || this.isCoverflow())
+  /** "Lagune": its own start page, album list, "Weiterhören" and player (app/lagune, body.lg) */
+  readonly isLagune = computed(() => isLaguneTheme(this.themeId()))
+  /** the player can be left while it plays on ("Läuft gerade" in the header): the round-2 themes and Lagune */
+  readonly minimizable = computed(() => this.roundTwo() || this.isLagune())
   /** the stage view (big cover in the middle) of a km theme */
   readonly stage = computed(() => this.isKm() && this.stageOn())
   /** read the name aloud when the stage stops on a cover */
@@ -141,9 +146,10 @@ export class KmThemeService {
   private applyBodyClasses(): void {
     const body = document.body
     for (const cls of Array.from(body.classList)) {
-      if (cls === 'km' || cls === 'cf' || cls.startsWith('km-')) body.classList.remove(cls)
+      if (cls === 'km' || cls === 'cf' || cls === 'lg' || cls.startsWith('km-')) body.classList.remove(cls)
     }
     if (this.isCoverflow()) body.classList.add('cf')
+    if (this.isLagune()) body.classList.add('lg')
     const theme = this.theme()
     if (!theme) return
     body.classList.add('km', `km-theme-${theme.id}`)

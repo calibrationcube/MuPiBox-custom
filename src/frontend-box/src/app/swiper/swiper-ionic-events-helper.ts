@@ -6,24 +6,24 @@ import { SwiperComponent } from './swiper.component'
  * Pages using the {@link SwiperComponent} should extend this class
  * so that the {@link SwiperComponent} gets notified of ionic navitation events.
  * It also provides a utlity function {@link resetSwiperPosition} to reset the slider
- * to the first slide.
+ * to the first slide. A page may leave the swiper out (the Lagune theme draws its own lists): then these do nothing.
  */
 @Directive()
 export class SwiperIonicEventsHelper {
   protected swiperComponent = viewChild(SwiperComponent)
 
   public ionViewDidEnter(): void {
-    this.swiperComponent().ionViewDidEnter()
+    this.swiperComponent()?.ionViewDidEnter()
   }
 
   public ionViewWillLeave(): void {
-    this.swiperComponent().ionViewWillLeave()
+    this.swiperComponent()?.ionViewWillLeave()
   }
 
   /**
    * Reset swiper position to first slide.
    */
   public resetSwiperPosition(): void {
-    this.swiperComponent().resetSwiperPosition()
+    this.swiperComponent()?.resetSwiperPosition()
   }
 }

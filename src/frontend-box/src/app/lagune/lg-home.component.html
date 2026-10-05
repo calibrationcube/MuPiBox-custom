@@ -1,0 +1,41 @@
+<div class="home-scroll">
+  <div class="sections">
+    @for (section of sections(); track section.category) {
+      <section class="section">
+        <h2 class="section-title">
+          <span class="section-icon"><ion-icon [name]="section.icon"></ion-icon></span>
+          <span>{{ label(section.category) }}</span>
+          @if (section.loading()) {
+            <ion-spinner name="crescent" class="section-spinner"></ion-spinner>
+          } @else if (section.tiles().length > 0) {
+            <span class="section-count">{{ section.tiles().length }}</span>
+          }
+        </h2>
+        @if (section.category === 'nas' && nasUnavailable()) {
+          <p class="section-empty">{{ texts.text('nasUnavailable') }}</p>
+        } @else if (!section.loading() && section.tiles().length === 0) {
+          <p class="section-empty">{{ label('empty') }}</p>
+        } @else {
+          <div class="tile-row">
+            @for (tile of section.tiles(); track $index) {
+              <mupi-lg-tile
+                [imgSrc]="tile.imgSrc | async"
+                [title]="tile.artist.name"
+                [isNew]="tile.artist.hasNew === true"
+                (tileClicked)="artistClicked.emit({ artist: tile.artist, category: section.category })"
+                (labelClicked)="readText(tile.artist.name)">
+              </mupi-lg-tile>
+            }
+          </div>
+        }
+      </section>
+    }
+  </div>
+</div>
+
+<mupi-lg-header
+  icon="lg-history"
+  [cornerLabel]="texts.text('resumeTitle')"
+  [settingsHoldMs]="settingsHoldMs()"
+  (cornerClicked)="resumeClicked.emit()">
+</mupi-lg-header>

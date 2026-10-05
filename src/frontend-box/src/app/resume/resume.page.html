@@ -1,3 +1,11 @@
+@if (lg()) {
+<!-- Lagune: the "Weiterhören" symbol in the corner (back), the entries as a paged grid (app/lagune) -->
+<ion-content class="resume-content lg-page" [scrollY]="false">
+  <mupi-lg-header icon="lg-history" [title]="displayTexts.text('resumeTitle')" (cornerClicked)="goBack()"></mupi-lg-header>
+  <mupi-loading [loading]="isLoading()"></mupi-loading>
+  <mupi-lg-tile-pages [data]="swiperData()" (elementClicked)="coverClicked($event.data)"></mupi-lg-tile-pages>
+</ion-content>
+} @else {
 <ion-header class="medialist-header">
   <ion-toolbar color="light">
     <ion-buttons slot="start">
@@ -12,3 +20,4 @@
   <mupi-loading [loading]="isLoading()"></mupi-loading>
   <mupi-swiper [data]="swiperData()" (elementClicked)="this.coverClicked($event.data)"></mupi-swiper>
 </ion-content>
+}

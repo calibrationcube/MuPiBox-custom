@@ -1,0 +1,135 @@
+<mupi-lg-header
+  [cover]="artistCover()"
+  [title]="headerTitle()"
+  [subtitle]="headerSubtitle()"
+  [nowPlaying]="false"
+  [cornerLabel]="showTrackList() ? texts.text('closeShort') : ''"
+  (cornerClicked)="cornerClicked()">
+</mupi-lg-header>
+
+@if (showTrackList()) {
+  <!-- Track list: a dark panel, six rows a page, the dots on the right turn the pages; the corner closes it -->
+  <div class="tracklist-panel">
+    @if (loadingTrackList()) {
+      <div class="tracklist-loading"><ion-spinner name="crescent"></ion-spinner></div>
+    }
+    <div class="tracklist-scroll" #trackScroller (scroll)="onTrackListScroll()">
+      @for (page of trackPages(); track $index) {
+        <div class="tracklist-page">
+          @for (entry of page; track entry.id) {
+            <button type="button" class="track-row" [class.current]="isCurrentTrack()(entry)" (click)="playTrack.emit(entry)">
+              <span class="track-bar"></span>
+              <span class="track-position">
+                @if (isCurrentTrack()(entry)) {
+                  <ion-icon name="lg-play"></ion-icon>
+                } @else {
+                  {{ entry.position }}
+                }
+              </span>
+              <span class="track-name">{{ entry.name }}@if (entry.artist) {<small>{{ entry.artist }}</small>}</span>
+              @if (entry.duration_ms) {
+                <span class="track-duration">{{ format(entry.duration_ms) }}</span>
+              }
+            </button>
+          }
+        </div>
+      } @empty {
+        @if (!loadingTrackList()) {
+          <div class="tracklist-page"><p class="tracklist-empty">{{ texts.text(trackListFailed() ? 'spotifyUnavailable' : 'noTracks') }}</p></div>
+        }
+      }
+    </div>
+  </div>
+  <mupi-lg-page-dots class="tracklist-dots" [count]="trackPages().length" [active]="activeTrackPage" (dotClicked)="scrollToTrackPage($event)"></mupi-lg-page-dots>
+} @else {
+  <!-- Left: the album cover (a long press opens the track list) and the volume below it -->
+  <div
+    class="cover"
+    (pointerdown)="coverDown.emit()"
+    (pointerup)="coverUp.emit()"
+    (pointerleave)="coverUp.emit()"
+    (pointercancel)="coverUp.emit()"
+    (contextmenu)="$event.preventDefault()">
+    <img [src]="cover()" draggable="false" ondragstart="return false;" alt="">
+    @if ((media().type === 'radio' || media().type === 'rss') && local()?.loading) {
+      <!-- a stream is buffering: a ring that gets smaller until it plays -->
+      <div class="load-indicator">
+        <svg viewBox="0 0 48 48">
+          <circle class="load-indicator-track" cx="24" cy="24" r="20"></circle>
+          <circle class="load-indicator-ring" [class.waiting]="loadWaiting()" cx="24" cy="24" [attr.r]="loadRingRadius()"></circle>
+        </svg>
+      </div>
+    }
+    @if (hasTrackList()) {
+      <div class="press-indicator" [class.active]="pressingCover()" [style.--press-duration.ms]="listViewTimerMs()">
+        <svg viewBox="0 0 48 48">
+          <circle class="press-indicator-track" cx="24" cy="24" r="20"></circle>
+          <circle class="press-indicator-progress" cx="24" cy="24" r="20"></circle>
+        </svg>
+        <ion-icon class="press-indicator-icon" name="lg-list-music"></ion-icon>
+      </div>
+    }
+  </div>
+  <div class="volume-row">
+    <button type="button" class="round round-small" (click)="volDown.emit()" aria-label="-">
+      <ion-icon name="lg-minus"></ion-icon>
+    </button>
+    <div class="volume-bar" role="meter" [attr.aria-valuenow]="volumePercent()">
+      <div class="volume-fill" [style.width.%]="volumePercent()"></div>
+    </div>
+    <button type="button" class="round round-small" (click)="volUp.emit()" aria-label="+">
+      <ion-icon name="lg-plus"></ion-icon>
+    </button>
+    @if (outputChoosable()) {
+      <!-- "Hören mit": the box or a paired Bluetooth device -->
+      <button type="button" class="round round-small output" [class.active]="outputOnBluetooth()" (click)="openOutput.emit()" [attr.aria-label]="texts.text('outputTitle')">
+        <ion-icon [name]="outputOnBluetooth() ? 'lg-headset' : 'lg-headphones'"></ion-icon>
+      </button>
+    }
+  </div>
+
+  <!-- Right: title, position (a tap opens the track list), progress with the times, one row of round buttons -->
+  <div class="controls">
+    <div class="track-title">{{ trackName() }}</div>
+    @if (hasTrackList() && positionText()) {
+      <button type="button" class="track-meta track-meta-button" (click)="openTrackList.emit()">
+        <ion-icon name="lg-list-music"></ion-icon>{{ positionText() }}
+      </button>
+    } @else if (isRadio()) {
+      <div class="track-meta live" [class.buffering]="local()?.loading"><i></i>{{ local()?.loading ? texts.text('connectingLabel') : texts.text('liveLabel') }}</div>
+    } @else {
+      <div class="track-meta">{{ positionText() }}</div>
+    }
+
+    @if (!isRadio()) {
+      <div class="progress-row">
+        <ion-range [value]="progress()" [max]="100" (ionKnobMoveEnd)="onSeek($event)" aria-label="Position"></ion-range>
+      </div>
+      <div class="time-row">
+        <span>{{ times()?.position ?? '' }}</span>
+        @if (shuffleShown()) {
+          <button type="button" class="shuffle-toggle" [class.active]="media().shuffle" (click)="toggleShuffle.emit()" aria-label="Shuffle">
+            <ion-icon name="lg-shuffle"></ion-icon>
+          </button>
+        }
+        <span>{{ times()?.duration ?? '' }}</span>
+      </div>
+    }
+
+    <div class="main-row">
+      @if (!isRadio()) {
+        <button type="button" class="round round-medium" [disabled]="!!media().showid" (click)="skipPrev.emit()" aria-label="|<">
+          <ion-icon name="lg-skip-back"></ion-icon>
+        </button>
+      }
+      <button type="button" class="round round-play" (click)="playPause.emit()" [attr.aria-label]="playing() ? 'Pause' : 'Play'">
+        <ion-icon [name]="playing() ? 'lg-pause' : 'lg-play'"></ion-icon>
+      </button>
+      @if (!isRadio()) {
+        <button type="button" class="round round-medium" [disabled]="!!media().showid" (click)="skipNext.emit()" aria-label=">|">
+          <ion-icon name="lg-skip-forward"></ion-icon>
+        </button>
+      }
+    </div>
+  </div>
+}

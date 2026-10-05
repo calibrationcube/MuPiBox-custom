@@ -1,3 +1,9 @@
+@if (lg()) {
+<!-- Lagune: every category on one scrolling page (app/lagune/lg-home) -->
+<ion-content class="home-content lg-page" [scrollY]="false">
+  <mupi-lg-home [categories]="visibleCategories()" (artistClicked)="artistCoverClicked($event.artist, $event.category)" (resumeClicked)="resume()"></mupi-lg-home>
+</ion-content>
+} @else {
 <ion-header class="home-header" [class.km-r2]="r2()">
   @if (r2()) {
     <!-- km themes, design round 2: everything 64 px high on one line - history, categories, "Läuft gerade" (when
@@ -60,3 +66,4 @@
   }
   <mupi-swiper [data]="swiperData()" roundImages="true" (elementClicked)="this.artistCoverClicked($event.data)"></mupi-swiper>
 </ion-content>
+}

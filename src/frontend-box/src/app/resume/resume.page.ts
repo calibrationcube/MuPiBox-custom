@@ -2,13 +2,23 @@ import { HttpClient } from '@angular/common/http'
 import { ChangeDetectionStrategy, Component, computed, inject, Signal, signal, WritableSignal } from '@angular/core'
 import { toObservable, toSignal } from '@angular/core/rxjs-interop'
 import { NavigationExtras, Router } from '@angular/router'
-import { IonBackButton, IonButtons, IonContent, IonHeader, IonTitle, IonToolbar } from '@ionic/angular/standalone'
+import {
+  IonBackButton,
+  IonButtons,
+  IonContent,
+  IonHeader,
+  IonTitle,
+  IonToolbar,
+  NavController,
+} from '@ionic/angular/standalone'
 import { addIcons } from 'ionicons'
 import { arrowBackOutline } from 'ionicons/icons'
 import { catchError, lastValueFrom, of, switchMap, tap } from 'rxjs'
 import { environment } from 'src/environments/environment'
 import { ArtworkService } from '../artwork.service'
 import { DisplayTextsService } from '../display-texts.service'
+import { LgHeaderComponent } from '../lagune/lg-header.component'
+import { LgTilePagesComponent } from '../lagune/lg-tile-pages.component'
 import { LoadingComponent } from '../loading/loading.component'
 import { Media } from '../media'
 import { MediaService } from '../media.service'
@@ -31,12 +41,17 @@ import { KmThemeService } from '../theme/km-theme.service'
     IonTitle,
     IonContent,
     SwiperComponent,
+    LgHeaderComponent,
+    LgTilePagesComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ResumePage extends SwiperIonicEventsHelper {
   // km themes: the title in the display's language ("Weiterhören")
   protected readonly km = inject(KmThemeService).isKm
+  /** Lagune: its header and the paged tile grid instead of the swiper (app/lagune) */
+  protected readonly lg = inject(KmThemeService).isLagune
+  private readonly navController = inject(NavController)
   protected readonly displayTexts = inject(DisplayTextsService)
   protected isOnline: Signal<boolean>
   protected isLoading: WritableSignal<boolean> = signal(false)
@@ -76,6 +91,11 @@ export class ResumePage extends SwiperIonicEventsHelper {
         tap(() => this.isLoading.set(false)),
       ),
     )
+  }
+
+  /** Lagune's corner: back to the start page (the other themes have their back button in the toolbar) */
+  protected goBack(): void {
+    this.navController.navigateBack('/home')
   }
 
   protected coverClicked(clickedMedia: Media): void {

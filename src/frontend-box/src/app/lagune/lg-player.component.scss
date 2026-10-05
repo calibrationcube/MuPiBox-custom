@@ -1,0 +1,506 @@
+// Figma player board: header as in the album list, album cover with the volume row below it on the left; title,
+// position, progress bar with the times and one row of round buttons on the right.
+$accent: var(--lg-accent, #01aadf);
+$play: var(--lg-icon-accent, #e8593f);
+
+:host {
+    position: absolute;
+    inset: 0;
+    display: block;
+    font-family: var(--lg-font, 'Nunito', sans-serif);
+}
+
+// ----- left column: album cover (long press: track list) -----
+
+.cover {
+    position: absolute;
+    top: 104px;
+    left: 40px;
+    width: 260px;
+    height: 260px;
+    border-radius: 20px 20px 20px 0;
+    overflow: hidden;
+    background: var(--lg-tile-empty, #d9d9d9);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+    touch-action: none;
+
+    img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        -webkit-user-drag: none;
+    }
+}
+
+.volume-row {
+    position: absolute;
+    top: 384px;
+    left: 40px;
+    width: 260px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.volume-bar {
+    flex: 1 1 auto;
+    height: 10px;
+    border-radius: 5px;
+    background: var(--lg-track, rgba(0, 0, 0, 0.35));
+    overflow: hidden;
+}
+
+.volume-fill {
+    height: 100%;
+    border-radius: 5px;
+    background: var(--lg-volume, rgba(245, 245, 245, 0.9));
+    transition: width 150ms ease;
+}
+
+// ring that fills while the cover is held, with the track list symbol in the middle
+.press-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 90px;
+    height: 90px;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.1s ease-out;
+
+    svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+    }
+
+    circle {
+        fill: rgba(0, 0, 0, 0.35);
+        stroke-width: 4;
+    }
+
+    .press-indicator-track {
+        stroke: rgba(255, 255, 255, 0.3);
+    }
+
+    .press-indicator-progress {
+        fill: none;
+        stroke: $accent;
+        stroke-linecap: round;
+        stroke-dasharray: 125.6;
+        stroke-dashoffset: 0;
+    }
+
+    .press-indicator-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 36px;
+        color: #ffffff;
+    }
+
+    &.active {
+        opacity: 1;
+
+        .press-indicator-progress {
+            animation: press-indicator-countdown var(--press-duration, 2500ms) linear forwards;
+        }
+    }
+}
+
+// a radio stream or podcast is buffering: same place and look as the long press ring
+.load-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 90px;
+    height: 90px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+
+    svg {
+        width: 100%;
+        height: 100%;
+    }
+
+    circle {
+        stroke-width: 4;
+    }
+
+    .load-indicator-track {
+        fill: rgba(0, 0, 0, 0.35);
+        stroke: rgba(255, 255, 255, 0.3);
+    }
+
+    .load-indicator-ring {
+        fill: none;
+        stroke: $accent;
+        stroke-linecap: round;
+        transition: r 0.9s linear;
+
+        &.waiting {
+            animation: load-indicator-waiting 1.2s ease-in-out infinite;
+        }
+    }
+}
+
+@keyframes load-indicator-waiting {
+    0%,
+    100% {
+        opacity: 0.35;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@keyframes press-indicator-countdown {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: 125.6;
+    }
+}
+
+// ----- right column -----
+
+.controls {
+    position: absolute;
+    top: 108px;
+    left: 340px;
+    width: 420px;
+    display: flex;
+    flex-direction: column;
+}
+
+.track-title {
+    min-height: 34px;
+    font-weight: 800;
+    font-size: 26px;
+    line-height: 34px;
+    color: var(--lg-text, #f5f5f5);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.track-meta {
+    align-self: flex-start;
+    min-height: 22px;
+    margin-top: 2px;
+    font-weight: 700;
+    font-size: 16px;
+    line-height: 22px;
+    letter-spacing: 0.02em;
+    color: var(--lg-text-soft, rgba(245, 245, 245, 0.85));
+}
+
+// the position opens the track list: a quiet pill, big enough to hit
+.track-meta-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 32px;
+    margin-top: 4px;
+    padding: 0 14px 0 10px;
+    border: 0;
+    border-radius: 16px;
+    background: var(--lg-track, rgba(0, 0, 0, 0.35));
+    font-family: inherit;
+
+    ion-icon {
+        font-size: 18px;
+    }
+
+    &:active {
+        transform: scale(0.97);
+    }
+}
+
+// radio: "Live" (or "Verbinde …") instead of the progress bar
+.live {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+
+    i {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: $play;
+        animation: load-indicator-waiting 1.6s ease-in-out infinite;
+    }
+
+    &.buffering i {
+        background: rgba(245, 245, 245, 0.7);
+    }
+}
+
+.progress-row {
+    height: 26px;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+
+    ion-range {
+        width: 100%;
+        padding: 0;
+        --bar-height: 10px;
+        --bar-border-radius: 5px;
+        --bar-background: var(--lg-track, rgba(0, 0, 0, 0.35));
+        --bar-background-active: #{$accent};
+        --knob-size: 26px;
+        --knob-background: #ffffff;
+        --knob-border-radius: 50%;
+        --knob-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+    }
+}
+
+// playing time on the left, length on the right, shuffle in between
+.time-row {
+    min-height: 26px;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    color: var(--lg-text-soft, rgba(245, 245, 245, 0.85));
+}
+
+.shuffle-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 26px;
+    padding: 0;
+    border: 0;
+    border-radius: 13px;
+    background: var(--lg-track, rgba(0, 0, 0, 0.35));
+    color: rgba(245, 245, 245, 0.6);
+
+    ion-icon {
+        font-size: 18px;
+    }
+
+    &.active {
+        background: $play;
+        color: #ffffff;
+    }
+}
+
+.main-row {
+    margin-top: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 34px;
+}
+
+// round white buttons, play / pause in the accent of the category symbols
+.round {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    color: var(--lg-on-button, #1c1c1c);
+    background: var(--lg-button, #ffffff);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
+    transition: transform 100ms ease, opacity 150ms ease;
+
+    &:active {
+        transform: scale(0.94);
+    }
+
+    &:disabled {
+        opacity: 0.3;
+    }
+}
+
+.round-small {
+    width: 50px;
+    height: 50px;
+
+    ion-icon {
+        font-size: 24px;
+    }
+
+    &.output {
+        width: 44px;
+        height: 44px;
+        background: var(--lg-pill, rgba(0, 0, 0, 0.6));
+        color: #ffffff;
+
+        &.active {
+            background: $accent;
+        }
+    }
+}
+
+.round-medium {
+    width: 60px;
+    height: 60px;
+
+    ion-icon {
+        font-size: 28px;
+    }
+}
+
+.round-play {
+    width: 90px;
+    height: 90px;
+    color: #ffffff;
+    background: $play;
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.3);
+
+    ion-icon {
+        font-size: 44px;
+    }
+}
+
+// ----- track list: dark panel, six rows a page, dots on the right -----
+
+.tracklist-panel {
+    position: absolute;
+    top: 100px;
+    left: 40px;
+    width: 720px;
+    height: 350px;
+    border-radius: 20px 20px 20px 0;
+    background: var(--lg-panel, rgba(0, 0, 0, 0.6));
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+}
+
+.tracklist-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #f5f5f5;
+    z-index: 1;
+}
+
+.tracklist-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scroll-snap-type: y mandatory;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.tracklist-page {
+    height: 100%;
+    scroll-snap-align: start;
+}
+
+.tracklist-empty {
+    margin: 0;
+    padding: 24px;
+    font-weight: 700;
+    font-size: 19px;
+    color: rgba(245, 245, 245, 0.8);
+}
+
+.track-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 56px;
+    padding: 0 22px 0 0;
+    gap: 18px;
+    border: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+    text-align: left;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 0.02em;
+    color: #f5f5f5;
+
+    &:last-child {
+        border-bottom: 0;
+    }
+
+    .track-bar {
+        flex: 0 0 10px;
+        width: 10px;
+        height: 56px;
+        background: transparent;
+    }
+
+    .track-position {
+        flex: 0 0 44px;
+        width: 44px;
+        display: flex;
+        justify-content: center;
+        opacity: 0.7;
+
+        ion-icon {
+            font-size: 22px;
+        }
+    }
+
+    .track-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        small {
+            margin-left: 10px;
+            font-size: 15px;
+            opacity: 0.65;
+        }
+    }
+
+    .track-duration {
+        flex: 0 0 auto;
+        opacity: 0.7;
+    }
+
+    &.current {
+        background: rgba(255, 255, 255, 0.08);
+        color: $accent;
+
+        .track-bar {
+            background: $accent;
+            box-shadow: 2px 0 6px rgba(0, 0, 0, 0.25);
+        }
+
+        .track-position,
+        .track-duration {
+            opacity: 1;
+        }
+    }
+}
+
+.tracklist-dots {
+    position: absolute;
+    right: 0;
+    top: 100px;
+    height: 350px;
+    width: 40px;
+    z-index: 10;
+    --lg-dot-gap: 22px;
+}

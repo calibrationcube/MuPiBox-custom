@@ -62,6 +62,7 @@ import { MediaService } from '../media.service'
 import type { MupiboxConfig } from '../mupibox-config.model'
 import { StatusComponent } from '../status/status.component'
 import { KmStatusGroupComponent } from '../km-header/km-status-group.component'
+import { LgPlayerComponent } from '../lagune/lg-player.component'
 import { OutputSwitchComponent } from '../output-switch/output-switch.component'
 import { PlayerCmds, PlayerService } from '../player.service'
 import type { PlaytimePlayState } from '../playtime.model'
@@ -111,6 +112,7 @@ export interface TrackListEntry {
     IonItem,
     IonLabel,
     IonSpinner,
+    LgPlayerComponent,
   ],
 })
 export class PlayerPage implements OnInit, AfterViewInit {
@@ -129,6 +131,9 @@ export class PlayerPage implements OnInit, AfterViewInit {
   protected readonly km = this.kmTheme.isKm
   /** header, controls, track list and "Hören mit" of design round 2: the km themes and coverflow */
   protected readonly r2 = this.kmTheme.roundTwo
+  /** Lagune: its own player and track list (app/lagune/lg-player), fed from this page */
+  protected readonly lg = this.kmTheme.isLagune
+  protected readonly isCurrentFn = (entry: TrackListEntry): boolean => this.isCurrentTrack(entry)
   protected readonly displayTexts = inject(DisplayTextsService)
 
   // "Hören mit": the box's speaker or a paired Bluetooth device (backend-api audio-output.ts). A tap on the volume opens
@@ -506,9 +511,10 @@ export class PlayerPage implements OnInit, AfterViewInit {
     this.albumEndTimer = undefined
   }
 
-  seek() {
+  // (Lagune's player hands in the place it was dropped at; the other layouts read their own range)
+  seek(value?: number) {
     this.cancelAlbumEnd()
-    const newValue = +this.range.value
+    const newValue = value ?? +this.range.value
     this.seekHold = { value: newValue, until: Date.now() + 3000 }
     if (this.media.type === 'spotify') {
       const duration = this.currentPlayedSpotify?.item.duration_ms
@@ -789,7 +795,7 @@ export class PlayerPage implements OnInit, AfterViewInit {
     // Left with the back button while it plays and set to minimise: the playback goes on and is handed to the
     // "Läuft gerade" pill (it stops it later, with the same clean-up as below). Left by the page itself - the end of
     // the album (Spotify's autoplay would go on with another one), nothing playing - it stops as always.
-    const keepPlaying = this.r2() && this.backAction() === 'minimize' && this.playing && !this.leftByPage && !this.albumEnded
+    const keepPlaying = this.kmTheme.minimizable() && this.backAction() === 'minimize' && this.playing && !this.leftByPage && !this.albumEnded
     if (keepPlaying) {
       // (with the player's last answer: which start plays - its generation - is known from the first moment)
       this.backgroundPlayback.begin(

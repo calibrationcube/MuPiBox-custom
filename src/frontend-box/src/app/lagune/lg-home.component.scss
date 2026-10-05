@@ -1,0 +1,98 @@
+// Figma home board: section title Nunito Extra Bold 22 #F5F5F5 at 25 px, a white 40 px badge with the category symbol
+// in front of it and the number of entries behind it, 8 px between title and tiles, 170 px tiles with 23 px gaps.
+:host {
+    position: absolute;
+    inset: 0;
+    display: block;
+}
+
+// The page scrolls up and down below the corner and the status pill (they stay where they are).
+.home-scroll {
+    position: absolute;
+    inset: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.sections {
+    padding: 75px 0 40px;
+}
+
+.section {
+    padding: 21px 0 9px;
+}
+
+.section-title {
+    margin: 0 0 8px 25px;
+    font-family: var(--lg-font, 'Nunito', sans-serif);
+    font-weight: 800;
+    font-size: 22px;
+    line-height: 27px;
+    color: var(--lg-text, #f5f5f5);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.section-spinner {
+    width: 20px;
+    height: 20px;
+    color: var(--lg-text, #f5f5f5);
+}
+
+// white rounded badge with the category symbol in the accent colour
+.section-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: var(--lg-badge, #ffffff);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+    color: var(--lg-icon-accent, #e8593f);
+
+    ion-icon {
+        font-size: 24px;
+    }
+}
+
+.section-count {
+    font-weight: 700;
+    font-size: 17px;
+    color: var(--lg-text-soft, rgba(245, 245, 245, 0.8));
+}
+
+.section-empty {
+    margin: 6px 29px 0;
+    font-family: var(--lg-font, 'Nunito', sans-serif);
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--lg-text-soft, rgba(245, 245, 245, 0.8));
+}
+
+// Native sideways scroller with snap points and no scrollbar; enough padding that the tile shadow is not cut off.
+.tile-row {
+    display: flex;
+    gap: 23px;
+    padding: 8px 29px 28px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 29px;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+        display: none;
+    }
+
+    mupi-lg-tile {
+        scroll-snap-align: start;
+    }
+}

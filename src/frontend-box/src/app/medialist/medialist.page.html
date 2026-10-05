@@ -1,3 +1,20 @@
+@if (lg()) {
+<!-- Lagune: the artist's picture in the corner (back), the title, the albums as a paged grid (app/lagune) -->
+<ion-content class="medialist-content lg-page" [scrollY]="false">
+  <!-- (a folder level opened by its path has no picture of its own: then the first entry's artist picture) -->
+  <mupi-lg-header
+    icon="lg-arrow-left"
+    [coverOf]="artist()?.coverMedia?.artistcover || artist()?.coverMedia?.cover ? artist()?.coverMedia : media()?.[0]"
+    [title]="artist()?.name ?? ''"
+    (cornerClicked)="goBack()">
+  </mupi-lg-header>
+  <mupi-loading [loading]="isLoading()"></mupi-loading>
+  @if (unavailable()) {
+    <mupi-media-unavailable [nas]="artist()?.coverMedia?.type === 'nas'" [spotify]="spotifyUnavailable()"></mupi-media-unavailable>
+  }
+  <mupi-lg-tile-pages [data]="swiperData()" [listKey]="category() + '|' + (artist()?.name ?? '') + '|' + (artist()?.coverMedia?.libraryPath ?? artist()?.coverMedia?.nasPath ?? '')" (elementClicked)="coverClicked($event.data)"></mupi-lg-tile-pages>
+</ion-content>
+} @else {
 <ion-header class="medialist-header" [class.km-r2]="r2()">
   @if (r2()) {
     <!-- km themes, design round 2: back (always "back to the choice"), the title, "Läuft gerade" between title and
@@ -30,3 +47,4 @@
   }
   <mupi-swiper [data]="swiperData()" [positionKey]="category() + '|' + (artist()?.name ?? '') + '|' + (artist()?.coverMedia?.libraryPath ?? artist()?.coverMedia?.nasPath ?? '')" (elementClicked)="this.coverClicked($event.data)"></mupi-swiper>
 </ion-content>
+}

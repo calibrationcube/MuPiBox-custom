@@ -1,0 +1,16 @@
+<div class="tile" (click)="tileClicked.emit()">
+  <img class="tile-img" draggable="false" ondragstart="return false;" loading="lazy" [src]="imgSrc() || 'assets/images/nocover_mupi.png'" alt="">
+  @if (done()) {
+    <span class="tile-done" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
+  } @else if (isNew()) {
+    <span class="tile-new" aria-hidden="true"></span>
+  }
+  <div class="tile-fade"></div>
+  @if (progress() && !done()) {
+    <div class="tile-progress"><i [style.width.%]="progress()"></i></div>
+  }
+  <div class="tile-label" (click)="onLabelClick($event)">
+    <span class="tile-bar"></span>
+    <span class="tile-title">{{ title() }}</span>
+  </div>
+</div>

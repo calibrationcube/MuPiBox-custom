@@ -1,0 +1,23 @@
+// Figma "Frame 13": at least 125x54 at the top right, #000 60 %, radius 25 at the bottom left, drop shadow.
+:host {
+    display: block;
+    flex: 0 0 auto;
+}
+
+.status-pill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 125px;
+    height: 54px;
+    padding: 0 24px;
+    box-sizing: border-box;
+    background: var(--lg-pill, rgba(0, 0, 0, 0.6));
+    border-radius: 0 0 0 25px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    // the whole press stays on the pill: a slightly moving finger would otherwise scroll and cancel the long press
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}

@@ -1,0 +1,19 @@
+<div class="pages-scroll" #scroller (scroll)="onScroll()">
+  @for (page of pages(); track $index) {
+    <div class="page">
+      @for (item of page; track $index) {
+        <mupi-lg-tile
+          [imgSrc]="item.imgSrc | async"
+          [title]="item.name"
+          [isNew]="!!item.isNew"
+          [progress]="item.progress"
+          [done]="!!item.done"
+          (tileClicked)="elementClicked.emit(item)"
+          (labelClicked)="readText(item.name)">
+        </mupi-lg-tile>
+      }
+    </div>
+  }
+</div>
+
+<mupi-lg-page-dots [count]="pages().length" [active]="activePage()" (dotClicked)="scrollToPage($event)"></mupi-lg-page-dots>

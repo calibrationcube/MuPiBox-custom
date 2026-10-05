@@ -5475,8 +5475,10 @@ function mountTheme(root, page) {
             if (!r.ok) return toast('Das hat nicht geklappt', 'info')
             let note = 'Das Display zeigt es nach dem nächsten Neuladen.'
             if (now) {
-              // the cover-flow theme builds its page differently: switching to or from it needs the page loaded again
-              const whole = before === 'coverflow' || name === 'coverflow'
+              // the cover-flow theme and Lagune build their pages differently: switching to or from them needs the page
+              // loaded again (a list drawn by the other layout would stay empty until the page is entered anew)
+              const ownLayout = (t) => t === 'coverflow' || t === 'lagune' || String(t ?? '').startsWith('lagune-')
+              const whole = ownLayout(before) || ownLayout(name)
               const rl = await api(`${API}/display/${whole ? 'reload-page' : 'reload-theme'}`, { method: 'POST', body: {} })
               note = rl.ok && rl.body?.ok !== false ? 'Das Display zeigt es gleich.' : 'Das Display zeigt es nach dem nächsten Neuladen.'
             }

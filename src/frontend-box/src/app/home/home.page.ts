@@ -35,6 +35,7 @@ import type { MupiboxConfig } from '../mupibox-config.model'
 import { StatusComponent } from '../status/status.component'
 import { BackgroundPlaybackService } from '../background-playback.service'
 import { KmStatusGroupComponent } from '../km-header/km-status-group.component'
+import { LgHomeComponent } from '../lagune/lg-home.component'
 import { NowPlayingPillComponent } from '../now-playing-pill/now-playing-pill.component'
 import { SwiperComponent, SwiperData } from '../swiper/swiper.component'
 import { SwiperIonicEventsHelper } from '../swiper/swiper-ionic-events-helper'
@@ -59,6 +60,7 @@ import { KmThemeService } from '../theme/km-theme.service'
     IonSegmentButton,
     SwiperComponent,
     IonContent,
+    LgHomeComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -69,6 +71,8 @@ export class HomePage extends SwiperIonicEventsHelper {
   protected readonly km = inject(KmThemeService).isKm
   /** the round-2 header (categories, "Läuft gerade", WiFi/battery): km themes and coverflow */
   protected readonly r2 = inject(KmThemeService).roundTwo
+  /** Lagune: its own start page with every category on it (app/lagune) */
+  protected readonly lg = inject(KmThemeService).isLagune
   // "Läuft gerade" in the header (design round 2): the categories take 80 instead of 96 px each while it is there
   private readonly background = inject(BackgroundPlaybackService)
   protected readonly pillShown = computed(() => this.r2() && this.background.media() !== null)
@@ -235,7 +239,8 @@ export class HomePage extends SwiperIonicEventsHelper {
     this.category.set(event.detail.value)
   }
 
-  protected async artistCoverClicked(artist: Artist): Promise<void> {
+  // (Lagune shows every category at once: it says which one the tile was in)
+  protected async artistCoverClicked(artist: Artist, category: CategoryType = this.category()): Promise<void> {
     // Check if this is a standalone playlist (playlist without artist)
     const isPlayableNasFolder = artist.coverMedia?.type === 'nas' && !artist.coverMedia.nasIsContainer
     const isPlayableLibraryFolder =
@@ -254,7 +259,7 @@ export class HomePage extends SwiperIonicEventsHelper {
       const navigationExtras: NavigationExtras = {
         state: {
           artist: artist,
-          category: this.category(),
+          category,
         },
         // NAS / local folder levels are identified by their folder path (see MedialistPage).
         queryParams:
